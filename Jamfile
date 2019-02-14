@@ -1,0 +1,54 @@
+# This is Library Jamfile for xercesc_utils.
+# use it like xercesc_utils//xercesc_utils
+#
+# Jamroot or site-config/user-config should define /boost projects
+# You can use use-project or boost.use-project, from boost module ;
+
+import os ;
+import feature ;
+import testing ;
+
+local usage-requirements = <include>include ;
+local requirements = $(usage-requirements) ;
+
+project xercesc_utils
+	# attributes
+	: usage-requirements $(usage-requirements)
+	: requirements       $(requirements)
+	;
+	
+local src =         [ glob src/*.cpp  ] ;
+local tests_src =   [ glob tests/*cpp ] ;
+
+alias headers 
+	: # sources
+	: # requirements 
+	: # defaults
+	: # usage-requirements
+	;
+
+lib xercesc_utils # target name
+	: headers
+	  $(src)  # sources
+	  $(SOLUTION_ROOT)//extlib-headers
+	  # static libs itself do not need other static libs,
+	  # but boost.build supports those depends and can automatically add them to dll/exe.
+	  
+	: # requirements
+	  <link>static
+	: # defaults
+	: # usage-requirements
+	;
+
+	
+# local boost_libs = system filesystem unit_test_framework ;
+	
+# unit-test xercesc_utils-tests
+# 	: $(tests_src) # sources
+# 	  xercesc_utils
+# 	  $(SOLUTION_ROOT)//extlib
+# 	  /boost//headers
+# 	  /boost//$(boost_libs)
+# 	;
+	
+# explicit xercesc_utils-tests ;
