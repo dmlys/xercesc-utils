@@ -14,6 +14,9 @@ namespace xercesc_utils
 	xml_path_exception::xml_path_exception(xml_string_view path)
 	    : std::runtime_error("\"" + to_utf8(path) + "\" not found") {}
 
+	xml_namespace_exception::xml_namespace_exception(const std::string & msg)
+	    : std::runtime_error(msg) {}
+
 	std::string to_utf8(const XMLCh * str, std::size_t len)
 	{
 		if (str == nullptr) return "";
@@ -436,6 +439,77 @@ namespace xercesc_utils
 		return resolver;
 	}
 
+	class CustomResolverDataHandler : public xercesc::DOMUserDataHandler
+	{
+	public:
+		virtual void handle(DOMOperationType operation, const XMLCh * const key, void * data, const xercesc_3_2::DOMNode * src, xercesc_3_2::DOMNode * dst) override;
+	};
+
+	void CustomResolverDataHandler::handle(DOMOperationType operation, const XMLCh * const key, void * data, const xercesc_3_2::DOMNode * src, xercesc_3_2::DOMNode * dst)
+	{
+		if (not data) return;
+
+		switch (operation)
+		{
+			case NODE_CLONED:
+			{
+				auto * resolver = static_cast<xercesc::DOMXPathNSResolver *>(data);
+				if (auto * implr = dynamic_cast<DOMXPathNSResolverImpl *>(resolver))
+					associate_custom_resolver(dst, DOMXPathNSResolverPtr(implr->clone()));
+				return;
+			}
+
+			case NODE_IMPORTED:
+			case NODE_RENAMED:
+			case NODE_ADOPTED:
+			default: return;
+
+			case NODE_DELETED:
+			{
+				auto * resolver = static_cast<xercesc::DOMXPathNSResolver *>(data);
+				resolver->release();
+				return;
+			}
+		}
+	}
+
+	const xml_string CUSTOM_RESOLVER = XERCESC_LIT("xercesc_utils::custom_resolver");
+	CustomResolverDataHandler g_custom_resolver_hanlder;
+
+	void associate_custom_resolver(xercesc::DOMNode * node, DOMXPathNSResolverPtr resolver)
+	{
+		auto * prev = node->setUserData(CUSTOM_RESOLVER.c_str(), resolver.release(), &g_custom_resolver_hanlder);
+		if (prev) static_cast<xercesc::DOMXPathNSResolver *>(prev)->release();
+	}
+
+	auto get_associated_custom_resolver(xercesc::DOMNode * node) -> xercesc::DOMXPathNSResolver *
+	{
+		return static_cast<xercesc::DOMXPathNSResolver *>(node->getUserData(CUSTOM_RESOLVER.c_str()));
+	}
+
+	void set_namespace(xercesc::DOMElement * element, xml_string prefix, xml_string uri)
+	{
+		if (not element) throw std::runtime_error("xercesc_utils::set_namespace: element is null");
+		element->setAttributeNS(u"http://www.w3.org/2000/xmlns/", prefix.c_str(), uri.c_str());
+	}
+
+	void set_namespace(xercesc::DOMDocument * doc, xml_string prefix, xml_string uri)
+	{
+		set_namespace(doc->getDocumentElement(), prefix, uri);
+	}
+
+	void set_associated_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<std::string_view, std::string_view>> items)
+	{
+		for (auto & item : items)
+			set_namespace(doc, item.first, item.second);
+	}
+
+	void set_associated_namespaces(xercesc::DOMDocument * element, std::initializer_list<std::pair<xml_string, xml_string>> items)
+	{
+		for (auto & item : items)
+			set_namespace(element, item.first, item.second);
+	}
+
 
 	namespace detail
 	{
@@ -475,6 +549,35 @@ namespace xercesc_utils
 			return ch == ' ' || ch == '\r' || ch == '\n';
 		}
 
+		[[noreturn]] static void throw_prefix_not_found(const XMLCh * prefix)
+		{
+			std::string errmsg;
+			errmsg.reserve(64);
+			errmsg = "xml namespace not found, prefix = ";
+			errmsg += to_utf8(prefix);
+			throw xml_namespace_exception(errmsg);
+		}
+
+		static xml_string_view lookupNamespaceURI(const xercesc::DOMXPathNSResolver * resolver, const XMLCh * prefix)
+		{
+			auto uri = resolver->lookupNamespaceURI(prefix);
+			if (not uri) throw_prefix_not_found(prefix);
+			return uri == nullptr ? XERCESC_LIT("") : uri;
+		}
+
+		static xml_string_view lookupNamespaceURI(const xercesc::DOMNode * node, const XMLCh * prefix)
+		{
+			auto uri = node->lookupNamespaceURI(prefix);
+			if (not uri) throw_prefix_not_found(prefix);
+			return uri;
+		}
+
+		static xml_string_view getNamespaceURI(const xercesc::DOMNode * node)
+		{
+			auto uri = node->getNamespaceURI();
+			return uri == nullptr ? XERCESC_LIT("") : uri;
+		}
+
 
 		static xml_string_view get_text_content(xercesc::DOMElement * element)
 		{
@@ -492,12 +595,29 @@ namespace xercesc_utils
 		static xercesc::DOMElement * find_root(xercesc::DOMDocument * doc, xml_string_view name)
 		{
 			xercesc::DOMElement * root = doc->getDocumentElement();
-			if (!root) return nullptr;
+			if (not root) return nullptr;
+
+			auto * resolver = get_associated_custom_resolver(doc);
 
 			auto * first = name.data();
 			auto * last  = first + name.size();
+			xml_string nsprefix;
+			xml_string_view searched_ns;
 
-			auto * name_first = root->getNodeName();
+			auto nspos = name.find(':');
+			if (nspos != name.npos)
+			{   // exists namespace
+				nsprefix.assign(first, first + nspos);
+				first += nspos + 1;
+				searched_ns = resolver ? lookupNamespaceURI(resolver, nsprefix.c_str())
+				                       : lookupNamespaceURI(root, nsprefix.c_str());
+			}
+
+			xml_string_view local_ns = getNamespaceURI(root);
+			if (local_ns != searched_ns) return nullptr;
+
+			auto * name_first = root->getLocalName();
+			if (not name_first) name_first = root->getNodeName();
 			auto * name_last = name_first + std::char_traits<XMLCh>::length(name_first);
 
 			if (compare(first, last, name_first, name_last) == 0)
@@ -509,32 +629,63 @@ namespace xercesc_utils
 		static xercesc::DOMElement * acquire_root(xercesc::DOMDocument * doc, xml_string_view name)
 		{
 			assert(doc);
+			auto * resolver = get_associated_custom_resolver(doc);
+			xercesc::DOMElement * root = doc->getDocumentElement();
+
 			auto * first = name.data();
 			auto * last  = first + name.size();
+			xml_string nsprefix;
+			xml_string_view searched_ns;
 
-			xercesc::DOMElement * root = doc->getDocumentElement();
+			auto nspos = name.find(':');
+			if (nspos != name.npos)
+			{   // exists namespace
+				nsprefix.assign(first, first + nspos);
+				first += nspos + 1;
+				searched_ns = resolver ? lookupNamespaceURI(resolver, nsprefix.c_str())
+				            : root     ? lookupNamespaceURI(root, nsprefix.c_str())
+				            :            lookupNamespaceURI(doc,  nsprefix.c_str());
+			}
+
 			if (root)
 			{
 				// if empty root asked return any already existing root
 				if (first == last) return root;
 
-				auto * name_first = root->getNodeName();
-				auto * name_last = name_first + std::char_traits<XMLCh>::length(name_first);
+				xml_string_view local_ns = getNamespaceURI(root);
+				if (local_ns != searched_ns)
+				{
+					std::string err_msg = "xercesc_utils::acquire_root: document already has root node and it's xml namespace is different";
+					err_msg += "has = "; err_msg += xercesc_utils::to_utf8(local_ns);
+					err_msg += ", asked = "; err_msg.append(searched_ns.begin(), searched_ns.end());
 
-				if (compare(first, last, name_first, name_last) == 0)
-					return root;
+					throw std::runtime_error(err_msg);
+				}
+				else
+				{
+					auto * name_first = root->getLocalName();
+					if (not name_first) name_first = root->getNodeName();
+					auto * name_last = name_first + std::char_traits<XMLCh>::length(name_first);
 
-				std::string err_msg = "xercesc_utils::acquire_root: document already has root node and it's name is different";
-				err_msg += "has = "; err_msg += xercesc_utils::to_utf8(name_first, name_last - name_first);
-				err_msg += ", asked = "; err_msg.append(first, last);
+					if (compare(first, last, name_first, name_last) == 0)
+						return root;
+					else
+					{
+						std::string err_msg = "xercesc_utils::acquire_root: document already has root node and it's name is different";
+						err_msg += "has = "; err_msg += xercesc_utils::to_utf8(name_first, name_last - name_first);
+						err_msg += ", asked = "; err_msg.append(first, last);
 
-				throw std::runtime_error(err_msg);
+						throw std::runtime_error(err_msg);
+					}
+				}
+
 			}
 			else
 			{
 				try
 				{
-					root = doc->createElement(first);
+					root = doc->createElementNS(searched_ns.data(), name.data());
+					//root->setPrefix(nsprefix.c_str());
 					doc->appendChild(root);
 					return root;
 				}
@@ -545,23 +696,40 @@ namespace xercesc_utils
 				}
 			}
 		}
-
-
 	} // namespace detail
 
 	xercesc::DOMElement * find_child(xercesc::DOMElement * element, xml_string_view name)
 	{
+		if (not element) return nullptr;
 		using namespace detail;
+
+		auto * doc = element->getOwnerDocument();
+		auto * resolver = get_associated_custom_resolver(doc);
 
 		auto * first = name.data();
 		auto * last  = first + name.size();
+		xml_string nsprefix;
+		xml_string_view searched_ns;
+
+		auto nspos = name.find(':');
+		if (nspos != name.npos)
+		{   // exists namespace
+			nsprefix.assign(first, first + nspos);
+			first += nspos + 1;
+			searched_ns = resolver ? lookupNamespaceURI(resolver, nsprefix.c_str())
+			                       : lookupNamespaceURI(element,  nsprefix.c_str());
+		}
 
 		for (auto * node = element->getFirstElementChild(); node; node = node->getNextElementSibling())
 		{
-			auto * name_first = node->getNodeName();
+			xml_string_view local_ns = getNamespaceURI(node);
+			if (local_ns != searched_ns) continue;
+
+			auto name_first = node->getLocalName();
+			if (not name_first) name_first = node->getNodeName();
 			auto * name_last = name_first + std::char_traits<XMLCh>::length(name_first);
 
-			if (compare(first, last, name_first, name_last) == 0)
+			if (compare(name_first, name_last, first, last) == 0)
 				return node;
 		}
 
@@ -658,11 +826,23 @@ namespace xercesc_utils
 			*next = 0;
 
 			auto * fnode = find_path(node, xml_string_view(first, next - first));
-			if (!fnode)
+			if (not fnode)
 			{
+				auto * resolver = get_associated_custom_resolver(doc);
+				xml_string nsprefix;
+				xml_string_view searched_ns;
+
+				auto it = std::find(first, last, ':');
+				if (it != last)
+				{   // exists namespace
+					nsprefix.assign(first, it);
+					searched_ns = resolver ? lookupNamespaceURI(resolver, nsprefix.c_str())
+					                       : lookupNamespaceURI(node,     nsprefix.c_str());
+				}
+
 				try
 				{
-					fnode = doc->createElement(first);
+					fnode = doc->createElementNS(searched_ns.data(), first);
 					node->appendChild(fnode);
 				}
 				catch (xercesc::DOMException & ex)
@@ -704,11 +884,23 @@ namespace xercesc_utils
 			*next = 0;
 
 			auto * fnode = find_path(node, xml_string_view(first, next - first));
-			if (!fnode)
+			if (not fnode)
 			{
+				auto * resolver = get_associated_custom_resolver(doc);
+				xml_string nsprefix;
+				xml_string_view searched_ns;
+
+				auto it = std::find(first, last, ':');
+				if (it != last)
+				{   // exists namespace
+					nsprefix.assign(first, it);
+					searched_ns = resolver ? lookupNamespaceURI(resolver, nsprefix.c_str())
+					                       : lookupNamespaceURI(node,     nsprefix.c_str());
+				}
+
 				try
 				{
-					fnode = doc->createElement(first);
+					fnode = doc->createElementNS(searched_ns.data(), first);
 					node->appendChild(fnode);
 				}
 				catch (xercesc::DOMException & ex)
@@ -785,12 +977,68 @@ namespace xercesc_utils
 
 	std::string get_attribute_text(xercesc::DOMElement * element, const xml_string & attrname)
 	{
+		if (not element) throw std::runtime_error("xercesc_utils::get_attribute_text: not element");
+		using namespace detail;
+
+		auto * doc = element->getOwnerDocument();
+		auto * resolver = get_associated_custom_resolver(doc);
+
+		auto * first = attrname.data();
+		auto * last  = first + attrname.size();
+		xml_string nsprefix;
+		xml_string_view searched_ns;
+
+		auto it = std::find(first, last, ':');
+		if (it != last)
+		{   // exists namespace
+			nsprefix.assign(first, it);
+			searched_ns = resolver ? lookupNamespaceURI(resolver, nsprefix.c_str())
+			                       : lookupNamespaceURI(element,  nsprefix.c_str());
+		}
+
+		try
+		{
+			to_utf8(element->getAttributeNS(searched_ns.data(), first));
+		}
+		catch (xercesc::DOMException & ex)
+		{
+			auto err = xercesc_utils::to_utf8(ex.getMessage());
+			std::throw_with_nested(std::runtime_error(std::move(err)));
+		}
+
 		return to_utf8(element->getAttribute(attrname.c_str()));
 	}
 
 	void set_attribute_text(xercesc::DOMElement * element, const xml_string & attrname, std::string_view text)
 	{
-		element->setAttribute(attrname.c_str(), to_xmlch(text).c_str());
+		if (not element) throw std::runtime_error("xercesc_utils::set_attribute_text: not element");
+		using namespace detail;
+
+		auto * doc = element->getOwnerDocument();
+		auto * resolver = get_associated_custom_resolver(doc);
+
+		auto * first = attrname.data();
+		auto * last  = first + attrname.size();
+		xml_string nsprefix;
+		xml_string_view searched_ns;
+
+		auto it = std::find(first, last, ':');
+		if (it != last)
+		{   // exists namespace
+			nsprefix.assign(first, it);
+			searched_ns = resolver ? lookupNamespaceURI(resolver, nsprefix.c_str())
+			                       : lookupNamespaceURI(element,  nsprefix.c_str());
+		}
+
+		try
+		{
+			element->setAttributeNS(searched_ns.data(), first, to_xmlch(text).c_str());
+		}
+		catch (xercesc::DOMException & ex)
+		{
+			auto err = xercesc_utils::to_utf8(ex.getMessage());
+			std::throw_with_nested(std::runtime_error(std::move(err)));
+		}
 	}
 
 
@@ -849,60 +1097,17 @@ namespace xercesc_utils
 		return node;
 	}
 
-	class CustomResolverDataHandler : public xercesc::DOMUserDataHandler
-	{
-	public:
-		virtual void handle(DOMOperationType operation, const XMLCh * const key, void * data, const xercesc_3_2::DOMNode * src, xercesc_3_2::DOMNode * dst) override;
-	};
-
-	void CustomResolverDataHandler::handle(DOMOperationType operation, const XMLCh * const key, void * data, const xercesc_3_2::DOMNode * src, xercesc_3_2::DOMNode * dst)
-	{
-		if (not data) return;
-
-		switch (operation)
-		{
-			case NODE_CLONED:
-			{
-				auto * resolver = static_cast<xercesc::DOMXPathNSResolver *>(data);
-				if (auto * implr = dynamic_cast<DOMXPathNSResolverImpl *>(resolver))
-					associate_custom_resolver(dst, DOMXPathNSResolverPtr(implr->clone()));
-				return;
-			}
-
-			case NODE_IMPORTED:
-			case NODE_RENAMED:
-			case NODE_ADOPTED:
-			default: return;
-
-			case NODE_DELETED:
-			{
-				auto * resolver = static_cast<xercesc::DOMXPathNSResolver *>(data);
-				resolver->release();
-				return;
-			}
-		}
-	}
-
-	const xml_string CUSTOM_RESOLVER = XERCESC_LIT("xercesc_utils::custom_resolver");
-	CustomResolverDataHandler g_custom_resolver_hanlder;
-
-	void associate_custom_resolver(xercesc::DOMNode * node, DOMXPathNSResolverPtr resolver)
-	{
-		auto * prev = node->setUserData(CUSTOM_RESOLVER.c_str(), resolver.release(), &g_custom_resolver_hanlder);
-		if (prev) static_cast<xercesc::DOMXPathNSResolver *>(prev)->release();
-	}
-
 	xercesc::DOMElement * find_xpath(xercesc::DOMElement * element, const xml_string & path)
 	{
 		if (not element) return nullptr;
 		auto * doc = element->getOwnerDocument();
-		void * user_data = doc->getUserData(CUSTOM_RESOLVER.c_str());
-		if (user_data)
-			return find_xpath(element, path, static_cast<xercesc::DOMXPathNSResolver *>(user_data));
+		auto * resolver = get_associated_custom_resolver(doc);
+		if (resolver)
+			return find_xpath(element, path, resolver);
 		else
 		{
 			DOMXPathNSResolverPtr resolver (doc->createNSResolver(element));
-			return find_xpath(element, path, static_cast<xercesc::DOMXPathNSResolver *>(user_data));
+			return find_xpath(element, path, resolver.get());
 		}
 	}
 
