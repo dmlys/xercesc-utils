@@ -14,7 +14,6 @@ namespace xercesc_utils
 	xml_path_exception::xml_path_exception(xml_string_view path)
 	    : std::runtime_error("\"" + to_utf8(path) + "\" not found") {}
 
-
 	std::string to_utf8(const XMLCh * str, std::size_t len)
 	{
 		if (str == nullptr) return "";
@@ -404,10 +403,39 @@ namespace xercesc_utils
 		return it->second.c_str();
 	}
 
+	DOMXPathNSResolverImpl * DOMXPathNSResolverImpl::clone() const
+	{
+		auto * clone = new DOMXPathNSResolverImpl;
+		clone->m_uri_mappings = m_uri_mappings;
+		clone->m_prefix_mappings = m_prefix_mappings;
+
+		return clone;
+	}
+
 	void DOMXPathNSResolverImpl::release()
 	{
 		delete this;
 	}
+
+
+	DOMXPathNSResolverImplPtr create_resolver(std::initializer_list<std::pair<std::string_view, std::string_view>> items)
+	{
+		DOMXPathNSResolverImplPtr resolver(new DOMXPathNSResolverImpl);
+		for (auto & item : items)
+			resolver->addNamespaceBinding(item.first, item.second);
+
+		return resolver;
+	}
+
+	DOMXPathNSResolverImplPtr create_resolver(std::initializer_list<std::pair<xml_string, xml_string>> items)
+	{
+		DOMXPathNSResolverImplPtr resolver(new DOMXPathNSResolverImpl);
+		for (auto & item : items)
+			resolver->addNamespaceBinding(item.first, item.second);
+
+		return resolver;
+	}
+
 
 	namespace detail
 	{
@@ -702,6 +730,11 @@ namespace xercesc_utils
 		return to_utf8(detail::get_text_content(element));
 	}
 
+	void set_text_content(xercesc::DOMElement * element, std::string_view text)
+	{
+		element->setTextContent(to_xmlch(text).c_str());
+	}
+
 	std::string find_path_text(xercesc::DOMDocument * doc, xml_string_view path, std::string_view defval /*= empty_string*/)
 	{
 		auto * element = find_path(doc, path);
@@ -749,6 +782,17 @@ namespace xercesc_utils
 		auto val = to_xmlch(value);
 		elem->setTextContent(val.c_str());
 	}
+
+	std::string get_attribute_text(xercesc::DOMElement * element, const xml_string & attrname)
+	{
+		return to_utf8(element->getAttribute(attrname.c_str()));
+	}
+
+	void set_attribute_text(xercesc::DOMElement * element, const xml_string & attrname, std::string_view text)
+	{
+		element->setAttribute(attrname.c_str(), to_xmlch(text).c_str());
+	}
+
 
 	static xml_string prefix_name(xml_string_view node_name, xml_string_view prefix)
 	{
@@ -804,4 +848,144 @@ namespace xercesc_utils
 
 		return node;
 	}
+
+	class CustomResolverDataHandler : public xercesc::DOMUserDataHandler
+	{
+	public:
+		virtual void handle(DOMOperationType operation, const XMLCh * const key, void * data, const xercesc_3_2::DOMNode * src, xercesc_3_2::DOMNode * dst) override;
+	};
+
+	void CustomResolverDataHandler::handle(DOMOperationType operation, const XMLCh * const key, void * data, const xercesc_3_2::DOMNode * src, xercesc_3_2::DOMNode * dst)
+	{
+		if (not data) return;
+
+		switch (operation)
+		{
+			case NODE_CLONED:
+			{
+				auto * resolver = static_cast<xercesc::DOMXPathNSResolver *>(data);
+				if (auto * implr = dynamic_cast<DOMXPathNSResolverImpl *>(resolver))
+					associate_custom_resolver(dst, DOMXPathNSResolverPtr(implr->clone()));
+				return;
+			}
+
+			case NODE_IMPORTED:
+			case NODE_RENAMED:
+			case NODE_ADOPTED:
+			default: return;
+
+			case NODE_DELETED:
+			{
+				auto * resolver = static_cast<xercesc::DOMXPathNSResolver *>(data);
+				resolver->release();
+				return;
+			}
+		}
+	}
+
+	const xml_string CUSTOM_RESOLVER = XERCESC_LIT("xercesc_utils::custom_resolver");
+	CustomResolverDataHandler g_custom_resolver_hanlder;
+
+	void associate_custom_resolver(xercesc::DOMNode * node, DOMXPathNSResolverPtr resolver)
+	{
+		auto * prev = node->setUserData(CUSTOM_RESOLVER.c_str(), resolver.release(), &g_custom_resolver_hanlder);
+		if (prev) static_cast<xercesc::DOMXPathNSResolver *>(prev)->release();
+	}
+
+	xercesc::DOMElement * find_xpath(xercesc::DOMElement * element, const xml_string & path)
+	{
+		if (not element) return nullptr;
+		auto * doc = element->getOwnerDocument();
+		void * user_data = doc->getUserData(CUSTOM_RESOLVER.c_str());
+		if (user_data)
+			return find_xpath(element, path, static_cast<xercesc::DOMXPathNSResolver *>(user_data));
+		else
+		{
+			DOMXPathNSResolverPtr resolver (doc->createNSResolver(element));
+			return find_xpath(element, path, static_cast<xercesc::DOMXPathNSResolver *>(user_data));
+		}
+	}
+
+	xercesc::DOMElement * find_xpath(xercesc::DOMDocument * doc, const xml_string & path)
+	{
+		return find_xpath(doc->getDocumentElement(), path);
+	}
+
+	xercesc::DOMElement * get_xpath(xercesc::DOMElement * element, const xml_string & path)
+	{
+		element = find_path(element, path);
+
+		if (not element) throw xml_path_exception(path);
+		return element;
+	}
+
+	xercesc::DOMElement * get_xpath(xercesc::DOMDocument * doc, const xml_string & path)
+	{
+		return get_xpath(doc->getDocumentElement(), path);
+	}
+
+	xercesc::DOMElement * find_xpath(xercesc::DOMElement * element, const xml_string & path, xercesc::DOMXPathNSResolver * resolver)
+	{
+		if (not element) return nullptr;
+		auto * doc = element->getOwnerDocument();
+
+		auto * result = doc->evaluate(
+			path.c_str(), element, resolver,
+			xercesc::DOMXPathResult::ANY_UNORDERED_NODE_TYPE, nullptr);
+
+		if (not result) return nullptr;
+
+		auto * resnode = result->getNodeValue();
+		if (not resnode) return nullptr;
+
+		if (resnode->getNodeType() != xercesc::DOMNode::ELEMENT_NODE)
+			return nullptr;
+
+		return static_cast<xercesc::DOMElement *>(resnode);
+	}
+
+	xercesc::DOMElement * find_xpath(xercesc::DOMDocument * doc, const xml_string & path, xercesc::DOMXPathNSResolver * resolver)
+	{
+		return find_xpath(doc->getDocumentElement(), path, resolver);
+	}
+
+	xercesc::DOMElement * get_xpath(xercesc::DOMElement * element, const xml_string & path, xercesc::DOMXPathNSResolver * resolver)
+	{
+		element = find_xpath(element, path, resolver);
+
+		if (not element) throw xml_path_exception(path);
+		return element;
+	}
+
+	xercesc::DOMElement * get_xpath(xercesc::DOMDocument * doc, const xml_string & path, xercesc::DOMXPathNSResolver * resolver)
+	{
+		return get_xpath(doc->getDocumentElement(), path, resolver);
+	}
+
+	std::string find_xpath_text(xercesc::DOMElement * element, const xml_string & path, std::string_view defval /*= empty_string*/)
+	{
+		element = find_path(element, path);
+		if (not element) return std::string(defval.data(), defval.size());
+
+		return get_text_content(element);
+	}
+
+	std::string find_xpath_text(xercesc::DOMDocument * doc, const xml_string & path, std::string_view defval /*= empty_string*/)
+	{
+		return find_xpath_text(doc->getDocumentElement(), path, defval);
+	}
+
+	std::string get_xpath_text(xercesc::DOMElement * element, const xml_string & path)
+	{
+		element = find_xpath(element, path);
+		if (not element) throw xml_path_exception(path);
+
+		return get_text_content(element);
+	}
+
+	std::string get_xpath_text(xercesc::DOMDocument * doc, const xml_string & path)
+	{
+		return get_xpath_text(doc->getDocumentElement(), path);
+	}
+
 }
