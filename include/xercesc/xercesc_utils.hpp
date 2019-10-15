@@ -209,11 +209,19 @@ namespace xercesc_utils
 	/************************************************************************/
 	/*                        attribute helpers                             */
 	/************************************************************************/
-	std::string get_attribute_text(xercesc::DOMElement * element, const xml_string & attrname);
-	       void set_attribute_text(xercesc::DOMElement * element, const xml_string & attrname, std::string_view text);
+	xercesc::DOMAttr * find_attribute_node(xercesc::DOMElement * element, const xml_string & attrname);
+	xercesc::DOMAttr *  get_attribute_node(xercesc::DOMElement * element, const xml_string & attrname);
 
-	template <class String> inline std::string get_attribute_text(xercesc::DOMElement * element, const String & attrname)                        { return get_attribute_text(element, forward_as_xml_string(attrname)); }
-	template <class String> inline        void set_attribute_text(xercesc::DOMElement * element, const String & attrname, std::string_view text) { return set_attribute_text(element, forward_as_xml_string(attrname), text); }
+	std::string find_attribute_text(xercesc::DOMElement * element, const xml_string & attrname, std::string_view defval = empty_string);
+	std::string  get_attribute_text(xercesc::DOMElement * element, const xml_string & attrname);
+	       void  set_attribute_text(xercesc::DOMElement * element, const xml_string & attrname, std::string_view text);
+
+	template <class String> inline xercesc::DOMAttr * find_attribute_node(xercesc::DOMElement * element, const xml_string & attrname) { return find_attribute_node(element, forward_as_xml_string(attrname)); }
+	template <class String> inline xercesc::DOMAttr *  get_attribute_node(xercesc::DOMElement * element, const xml_string & attrname) { return  get_attribute_node(element, forward_as_xml_string(attrname)); }
+
+	template <class String> inline std::string find_attribute_text(xercesc::DOMElement * element, const String & attrname, std::string_view defval = empty_string) { return find_attribute_text(element, forward_as_xml_string(attrname), defval); }
+	template <class String> inline std::string  get_attribute_text(xercesc::DOMElement * element, const String & attrname)                                         { return  get_attribute_text(element, forward_as_xml_string(attrname));         }
+	template <class String> inline        void  set_attribute_text(xercesc::DOMElement * element, const String & attrname, std::string_view text)                  { return  set_attribute_text(element, forward_as_xml_string(attrname), text);   }
 
 	/************************************************************************/
 	/*                        rename subtree group                          */
