@@ -149,11 +149,11 @@ namespace xercesc_utils
 		return report;
 	}
 
-	DOMDocumentPtr create_empty_document()
+	std::shared_ptr<xercesc::DOMDocument> create_empty_document()
 	{
 		const XMLCh * tempStr = XERCESC_LIT("LS");
 		xercesc::DOMImplementation  * impl = xercesc::DOMImplementationRegistry::getDOMImplementation(tempStr);
-		DOMDocumentPtr domptr(impl->createDocument());
+		std::shared_ptr<xercesc::DOMDocument> domptr(impl->createDocument(), xercesc_release_deleter());
 
 		auto * conf = domptr->getDOMConfig();
 		// Ignore comments and whitespace so we don't get extra nodes to process that just waste time.
@@ -516,10 +516,10 @@ namespace xercesc_utils
 			set_namespace(doc, item.first, item.second);
 	}
 
-	void set_associated_namespaces(xercesc::DOMDocument * element, std::initializer_list<std::pair<xml_string, xml_string>> items)
+	void set_associated_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<xml_string, xml_string>> items)
 	{
 		for (auto & item : items)
-			set_namespace(element, item.first, item.second);
+			set_namespace(doc, item.first, item.second);
 	}
 
 
@@ -1144,6 +1144,7 @@ namespace xercesc_utils
 	{
 		if (not element) return nullptr;
 		auto * doc = element->getOwnerDocument();
+
 		auto * resolver = get_associated_custom_resolver(doc);
 		if (resolver)
 			return find_xpath(element, path, resolver);
@@ -1154,51 +1155,42 @@ namespace xercesc_utils
 		}
 	}
 
-	xercesc::DOMElement * find_xpath(xercesc::DOMDocument * doc, const xml_string & path)
-	{
-		if (not doc) return nullptr;
-		return find_xpath(doc->getDocumentElement(), path);
-	}
-
-	xercesc::DOMElement * get_xpath(xercesc::DOMElement * element, const xml_string & path)
-	{
-		if (not element) throw std::invalid_argument("xercesc_utils::get_xpath: element is null");
-		element = find_path(element, path);
-
-		if (not element) throw xml_path_exception(path);
-		return element;
-	}
-
-	xercesc::DOMElement * get_xpath(xercesc::DOMDocument * doc, const xml_string & path)
-	{
-		if (not doc) throw std::invalid_argument("xercesc_utils::get_xpath: document is null");
-		return get_xpath(doc->getDocumentElement(), path);
-	}
-
 	xercesc::DOMElement * find_xpath(xercesc::DOMElement * element, const xml_string & path, xercesc::DOMXPathNSResolver * resolver)
 	{
 		if (not element) return nullptr;
 		auto * doc = element->getOwnerDocument();
 
-		auto * result = doc->evaluate(
-			path.c_str(), element, resolver,
-			xercesc::DOMXPathResult::ANY_UNORDERED_NODE_TYPE, nullptr);
+		try
+		{
+			auto * result = doc->evaluate(
+				path.c_str(), doc->getDocumentElement(), resolver,
+				xercesc::DOMXPathResult::ANY_UNORDERED_NODE_TYPE, nullptr);
 
-		if (not result) return nullptr;
+			if (not result) return nullptr;
 
-		auto * resnode = result->getNodeValue();
-		if (not resnode) return nullptr;
+			auto * resnode = result->getNodeValue();
+			if (not resnode) return nullptr;
 
-		if (resnode->getNodeType() != xercesc::DOMNode::ELEMENT_NODE)
-			return nullptr;
+			if (resnode->getNodeType() != xercesc::DOMNode::ELEMENT_NODE)
+				return nullptr;
 
-		return static_cast<xercesc::DOMElement *>(resnode);
+			return static_cast<xercesc::DOMElement *>(resnode);
+		}
+		catch (xercesc::DOMException & ex)
+		{
+			auto err = xercesc_utils::to_utf8(ex.getMessage());
+			std::throw_with_nested(std::runtime_error(std::move(err)));
+		}
 	}
 
-	xercesc::DOMElement * find_xpath(xercesc::DOMDocument * doc, const xml_string & path, xercesc::DOMXPathNSResolver * resolver)
+
+	xercesc::DOMElement * get_xpath(xercesc::DOMElement * element, const xml_string & path)
 	{
-		if (not doc) return nullptr;
-		return find_xpath(doc->getDocumentElement(), path, resolver);
+		if (not element) throw std::invalid_argument("xercesc_utils::get_xpath: element is null");
+		element = find_xpath(element, path);
+
+		if (not element) throw xml_path_exception(path);
+		return element;
 	}
 
 	xercesc::DOMElement * get_xpath(xercesc::DOMElement * element, const xml_string & path, xercesc::DOMXPathNSResolver * resolver)
@@ -1209,23 +1201,11 @@ namespace xercesc_utils
 		return element;
 	}
 
-	xercesc::DOMElement * get_xpath(xercesc::DOMDocument * doc, const xml_string & path, xercesc::DOMXPathNSResolver * resolver)
-	{
-		if (not doc) throw std::invalid_argument("xercesc_utils::get_xpath: document is null");
-		return get_xpath(doc->getDocumentElement(), path, resolver);
-	}
-
 	std::string find_xpath_text(xercesc::DOMElement * element, const xml_string & path, std::string_view defval /*= empty_string*/)
 	{
-		element = find_path(element, path);
+		element = find_xpath(element, path);
 		if (not element) return std::string(defval.data(), defval.size());
 		return get_text_content(element);
-	}
-
-	std::string find_xpath_text(xercesc::DOMDocument * doc, const xml_string & path, std::string_view defval /*= empty_string*/)
-	{
-		if (not doc) return std::string(defval.data(), defval.size());
-		return find_xpath_text(doc->getDocumentElement(), path, defval);
 	}
 
 	std::string get_xpath_text(xercesc::DOMElement * element, const xml_string & path)
@@ -1235,11 +1215,4 @@ namespace xercesc_utils
 		if (not element) throw xml_path_exception(path);
 		return get_text_content(element);
 	}
-
-	std::string get_xpath_text(xercesc::DOMDocument * doc, const xml_string & path)
-	{
-		if (not doc) throw std::invalid_argument("xercesc_utils::get_xpath_text: document is null");
-		return get_xpath_text(doc->getDocumentElement(), path);
-	}
-
 }

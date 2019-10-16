@@ -19,6 +19,10 @@ namespace xercesc_utils
 #define XERCESC_LIT(str) u##str
 #endif
 
+	inline void xercesc_init() { xercesc::XMLPlatformUtils::Initialize(); }
+	inline void xercesc_free() { xercesc::XMLPlatformUtils::Terminate();  }
+
+
 	using xml_string      = std::basic_string<XMLCh>;
 	using xml_string_view = std::basic_string_view<XMLCh>;
 
@@ -89,7 +93,7 @@ namespace xercesc_utils
 	std::string error_report(xercesc::XMLException & ex);
 
 
-	DOMDocumentPtr create_empty_document();
+	std::shared_ptr<xercesc::DOMDocument> create_empty_document();
 
 	enum save_option : bool
 	{
@@ -155,8 +159,8 @@ namespace xercesc_utils
 	template <class PrefixString, class UriString> inline void set_namespace(xercesc::DOMElement  * element, const PrefixString & prefix, const UriString & uri) { return set_namespace(element, forward_as_xml_string(prefix), forward_as_xml_string(uri)); }
 	template <class PrefixString, class UriString> inline void set_namespace(xercesc::DOMDocument * doc,     const PrefixString & prefix, const UriString & uri) { return set_namespace(doc,     forward_as_xml_string(prefix), forward_as_xml_string(uri)); }
 
-	void set_associated_namespaces(xercesc::DOMElement * element, std::initializer_list<std::pair<std::string_view, std::string_view>> items);
-	void set_associated_namespaces(xercesc::DOMDocument * doc,    std::initializer_list<std::pair<xml_string, xml_string>> items);
+	void set_associated_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<std::string_view, std::string_view>> items);
+	void set_associated_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<xml_string, xml_string>> items);
 
 	/************************************************************************/
 	/*                    basic path helpers                                */
@@ -242,38 +246,20 @@ namespace xercesc_utils
 	/*                        xpath helpers                                 */
 	/************************************************************************/
 	xercesc::DOMElement * find_xpath(xercesc::DOMElement * element, const xml_string & path);
-	xercesc::DOMElement * find_xpath(xercesc::DOMDocument * doc,    const xml_string & path);
+	xercesc::DOMElement * find_xpath(xercesc::DOMElement * element, const xml_string & path, xercesc::DOMXPathNSResolver * resolver);
 
 	xercesc::DOMElement * get_xpath(xercesc::DOMElement * element, const xml_string & path);
-	xercesc::DOMElement * get_xpath(xercesc::DOMDocument * doc,    const xml_string & path);
-
-	xercesc::DOMElement * find_xpath(xercesc::DOMElement * element, const xml_string & path, xercesc::DOMXPathNSResolver * resolver);
-	xercesc::DOMElement * find_xpath(xercesc::DOMDocument * doc,    const xml_string & path, xercesc::DOMXPathNSResolver * resolver);
-
 	xercesc::DOMElement * get_xpath(xercesc::DOMElement * element, const xml_string & path, xercesc::DOMXPathNSResolver * resolver);
-	xercesc::DOMElement * get_xpath(xercesc::DOMDocument * doc,    const xml_string & path, xercesc::DOMXPathNSResolver * resolver);
 
 	std::string find_xpath_text(xercesc::DOMElement * element, const xml_string & path, std::string_view defval = empty_string);
-	std::string find_xpath_text(xercesc::DOMDocument * doc,    const xml_string & path, std::string_view defval = empty_string);
+	std::string  get_xpath_text(xercesc::DOMElement * element, const xml_string & path);
 
-	std::string get_xpath_text(xercesc::DOMElement * element, const xml_string & path);
-	std::string get_xpath_text(xercesc::DOMDocument * doc,    const xml_string & path);
-
-	template <class String> inline xercesc::DOMElement * find_xpath(xercesc::DOMElement * element, const String & path) { return find_xpath(element, forward_as_xml_string(path)); }
-	template <class String> inline xercesc::DOMElement * find_xpath(xercesc::DOMDocument * doc,    const String & path) { return find_xpath(doc,     forward_as_xml_string(path)); }
-
-	template <class String> inline xercesc::DOMElement * get_xpath(xercesc::DOMElement * element, const String & path) { return get_xpath(element, forward_as_xml_string(path)); }
-	template <class String> inline xercesc::DOMElement * get_xpath(xercesc::DOMDocument * doc,    const String & path) { return get_xpath(doc,     forward_as_xml_string(path)); }
-
+	template <class String> inline xercesc::DOMElement * find_xpath(xercesc::DOMElement * element, const String & path)                                         { return find_xpath(element, forward_as_xml_string(path)); }
 	template <class String> inline xercesc::DOMElement * find_xpath(xercesc::DOMElement * element, const String & path, xercesc::DOMXPathNSResolver * resolver) { return find_xpath(element, forward_as_xml_string(path), resolver); }
-	template <class String> inline xercesc::DOMElement * find_xpath(xercesc::DOMDocument * doc,    const String & path, xercesc::DOMXPathNSResolver * resolver) { return find_xpath(doc,     forward_as_xml_string(path), resolver); }
 
-	template <class String> inline xercesc::DOMElement * get_xpath(xercesc::DOMElement * element, const String & path, xercesc::DOMXPathNSResolver * resolver) { return get_xpath(element, forward_as_xml_string(path), resolver); }
-	template <class String> inline xercesc::DOMElement * get_xpath(xercesc::DOMDocument * doc,    const String & path, xercesc::DOMXPathNSResolver * resolver) { return get_xpath(doc,     forward_as_xml_string(path), resolver); }
+	template <class String> inline xercesc::DOMElement * get_xpath(xercesc::DOMElement * element, const String & path)                                          { return find_xpath(element, forward_as_xml_string(path)); }
+	template <class String> inline xercesc::DOMElement * get_xpath(xercesc::DOMElement * element, const String & path, xercesc::DOMXPathNSResolver * resolver)  { return  get_xpath(element, forward_as_xml_string(path), resolver); }
 
-	template <class String> inline std::string find_xpath_text(xercesc::DOMElement * element, const String & path, std::string_view defval = empty_string) { return find_xpath_text(element, forward_as_xml_string(path), defval); }
-	template <class String> inline std::string find_xpath_text(xercesc::DOMDocument * doc,    const String & path, std::string_view defval = empty_string) { return find_xpath_text(doc,     forward_as_xml_string(path), defval); }
-
-	template <class String> inline std::string get_xpath_text(xercesc::DOMElement * element, const String & path) { return get_xpath_text(element, forward_as_xml_string(path)); }
-	template <class String> inline std::string get_xpath_text(xercesc::DOMDocument * doc,    const String & path) { return get_xpath_text(doc,     forward_as_xml_string(path)); }
+	template <class String> inline std::string find_xpath_text(xercesc::DOMElement * element, const String & path, std::string_view defval = empty_string)      { return find_xpath_text(element, forward_as_xml_string(path), defval); }
+	template <class String> inline std::string  get_xpath_text(xercesc::DOMElement * element, const String & path)                                              { return  get_xpath_text(element, forward_as_xml_string(path)); }
 }
