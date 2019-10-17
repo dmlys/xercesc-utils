@@ -499,6 +499,22 @@ namespace xercesc_utils
 		return static_cast<xercesc::DOMXPathNSResolver *>(node->getUserData(CUSTOM_RESOLVER.c_str()));
 	}
 
+	auto associate_namespaces(xercesc::DOMNode * node, std::initializer_list<std::pair<std::string_view, std::string_view>> items) -> DOMXPathNSResolverImpl *
+	{
+		auto resolver = create_resolver(items);
+		auto ret = resolver.get();
+		associate_custom_resolver(node, std::move(resolver));
+		return ret;
+	}
+
+	auto associate_namespaces(xercesc::DOMNode * node, std::initializer_list<std::pair<xml_string, xml_string>> items) -> DOMXPathNSResolverImpl *
+	{
+		auto resolver = create_resolver(items);
+		auto ret = resolver.get();
+		associate_custom_resolver(node, std::move(resolver));
+		return ret;
+	}
+
 	void set_namespace(xercesc::DOMElement * element, xml_string prefix, xml_string uri)
 	{
 		if (not element) throw std::invalid_argument("xercesc_utils::set_namespace: element is null");
@@ -510,13 +526,13 @@ namespace xercesc_utils
 		set_namespace(doc->getDocumentElement(), prefix, uri);
 	}
 
-	void set_associated_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<std::string_view, std::string_view>> items)
+	void set_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<std::string_view, std::string_view>> items)
 	{
 		for (auto & item : items)
 			set_namespace(doc, item.first, item.second);
 	}
 
-	void set_associated_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<xml_string, xml_string>> items)
+	void set_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<xml_string, xml_string>> items)
 	{
 		for (auto & item : items)
 			set_namespace(doc, item.first, item.second);

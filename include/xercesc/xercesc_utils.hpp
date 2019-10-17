@@ -153,14 +153,17 @@ namespace xercesc_utils
 	void associate_custom_resolver(xercesc::DOMNode * node, DOMXPathNSResolverPtr resolver);
 	auto get_associated_custom_resolver(xercesc::DOMNode * node) -> xercesc::DOMXPathNSResolver *;
 
+	auto associate_namespaces(xercesc::DOMNode * node, std::initializer_list<std::pair<std::string_view, std::string_view>> items) -> DOMXPathNSResolverImpl *;
+	auto associate_namespaces(xercesc::DOMNode * node, std::initializer_list<std::pair<xml_string, xml_string>> items) -> DOMXPathNSResolverImpl *;
+
 	void set_namespace(xercesc::DOMElement  * element, xml_string prefix, xml_string uri);
 	void set_namespace(xercesc::DOMDocument * doc,     xml_string prefix, xml_string uri);
 
 	template <class PrefixString, class UriString> inline void set_namespace(xercesc::DOMElement  * element, const PrefixString & prefix, const UriString & uri) { return set_namespace(element, forward_as_xml_string(prefix), forward_as_xml_string(uri)); }
 	template <class PrefixString, class UriString> inline void set_namespace(xercesc::DOMDocument * doc,     const PrefixString & prefix, const UriString & uri) { return set_namespace(doc,     forward_as_xml_string(prefix), forward_as_xml_string(uri)); }
 
-	void set_associated_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<std::string_view, std::string_view>> items);
-	void set_associated_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<xml_string, xml_string>> items);
+	void set_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<std::string_view, std::string_view>> items);
+	void set_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<xml_string, xml_string>> items);
 
 	/************************************************************************/
 	/*                    basic path helpers                                */
