@@ -1,6 +1,7 @@
 ﻿#include <codecvt>
 #include <ext/codecvt_conv.hpp>
 #include <xercesc/xercesc_utils.hpp>
+#include <boost/predef.h>
 
 namespace xercesc_utils
 {
@@ -31,12 +32,23 @@ namespace xercesc_utils
 		if (str == nullptr) return "";
 		if (len == std::size_t(-1)) len = std::char_traits<XMLCh>::length(str);
 
+#if BOOST_LIB_STD_DINKUMWARE
+		std::locale loc;
+		using cvt_type = std::codecvt<whcar_t, char, std::mbstate_t>;
+		auto & cvt = std::use_facet<cvt_type>(loc);
+		
+		static_assert(sizeof(wchar_t) == sizeof(XMLCh));
+		auto input = boost::make_iterator_range_n(reinterpret_cast<const wchar_t *>(str), len);
+		return ext::codecvt_convert::to_bytes(cvt, input);
+#else
 		std::locale loc;
 		using cvt_type = std::codecvt<XMLCh, char, std::mbstate_t>;
 		auto & cvt = std::use_facet<cvt_type>(loc);
 		
 		auto input = boost::make_iterator_range_n(str, len);
 		return ext::codecvt_convert::to_bytes(cvt, input);
+#endif
+
 	}
 
 	xercesc_utils::xml_string to_xmlch(const char * utf8_str, std::size_t len)

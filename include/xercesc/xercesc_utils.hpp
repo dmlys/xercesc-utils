@@ -12,13 +12,16 @@
 
 namespace xercesc_utils
 {
-
-#if WCHAR_MAX == ISHORT_MAX
-#define XERCESC_LIT(str) L##str
-#else
-#define XERCESC_LIT(str) u##str
-#endif
-
+	#define XERCESC_LIT_IMPL_wchar_t(str) L##str
+	#define XERCESC_LIT_IMPL_char8_t(str) u8##str
+	#define XERCESC_LIT_IMPL_char16_t(str) u##str
+	#define XERCESC_LIT_IMPL_char32_t(str) U##str
+	
+	#define XERCESC_LIT_IMPL2(str, char_type) XERCESC_LIT_IMPL_##char_type(str)
+	#define XERCESC_LIT_IMPL(str, char_type) XERCESC_LIT_IMPL2(str, char_type)
+	#define XERCESC_LIT(str) XERCESC_LIT_IMPL(str, XERCES_XMLCH_T)
+	
+	
 	inline void xercesc_init() { xercesc::XMLPlatformUtils::Initialize(); }
 	inline void xercesc_free() { xercesc::XMLPlatformUtils::Terminate();  }
 
