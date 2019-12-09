@@ -33,8 +33,9 @@ namespace xercesc_utils
 		if (len == std::size_t(-1)) len = std::char_traits<XMLCh>::length(str);
 
 #if BOOST_LIB_STD_DINKUMWARE
+		// MSVC stdlib does have problems with std::codecvt<char16_t, char, std::mbstate_t>;
 		std::locale loc;
-		using cvt_type = std::codecvt<whcar_t, char, std::mbstate_t>;
+		using cvt_type = std::codecvt<wchar_t, char, std::mbstate_t>;
 		auto & cvt = std::use_facet<cvt_type>(loc);
 		
 		static_assert(sizeof(wchar_t) == sizeof(XMLCh));
