@@ -169,6 +169,18 @@ namespace xercesc_utils
 	void set_namespaces(xercesc::DOMDocument * doc, std::initializer_list<std::pair<xml_string, xml_string>> items);
 
 	/************************************************************************/
+	/*                    create helpers                                    */
+	/************************************************************************/
+	xercesc::DOMElement * create_element_ns(xercesc::DOMElement * element, xml_string namespace_uri, xml_string qualified_name);
+	xercesc::DOMAttr  * create_attribute_ns(xercesc::DOMElement * element, xml_string namespace_uri, xml_string qualified_name);
+	
+	void set_attribute_ns(xercesc::DOMElement * element, xml_string namespace_uri, xml_string qualified_name, std::string_view value);
+	
+	template <class NamespaceString, class NameString> inline xercesc::DOMElement * create_element_ns(xercesc::DOMElement * element, const NamespaceString & namespace_uri, const NameString & qualified_name) { return create_element_ns(element, forward_as_xml_string(namespace_uri), forward_as_xml_string(qualified_name)); }
+	template <class NamespaceString, class NameString> inline xercesc::DOMAttr  * create_attribute_ns(xercesc::DOMElement * element, const NamespaceString & namespace_uri, const NameString & qualified_name) { return create_attribute_ns(element, forward_as_xml_string(namespace_uri), forward_as_xml_string(qualified_name)); }
+	template <class NamespaceString, class NameString> inline void set_attribute_ns(xercesc::DOMElement * element, const NamespaceString & namespace_uri, const NameString & qualified_name, std::string_view value) { return set_attribute_ns(element, forward_as_xml_string(namespace_uri), forward_as_xml_string(qualified_name), std::move(value)); }
+	
+	/************************************************************************/
 	/*                    basic path helpers                                */
 	/************************************************************************/
 	std::string get_text_content(xercesc::DOMElement * element);

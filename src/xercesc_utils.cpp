@@ -531,7 +531,7 @@ namespace xercesc_utils
 	void set_namespace(xercesc::DOMElement * element, xml_string prefix, xml_string uri)
 	{
 		if (not element) throw std::invalid_argument("xercesc_utils::set_namespace: element is null");
-		element->setAttributeNS(u"http://www.w3.org/2000/xmlns/", prefix.c_str(), uri.c_str());
+		element->setAttributeNS(XERCESC_LIT("http://www.w3.org/2000/xmlns/"), prefix.c_str(), uri.c_str());
 	}
 
 	void set_namespace(xercesc::DOMDocument * doc, xml_string prefix, xml_string uri)
@@ -550,7 +550,67 @@ namespace xercesc_utils
 		for (auto & item : items)
 			set_namespace(doc, item.first, item.second);
 	}
-
+	
+	/// Similar to DOMDocument::createElementNS, but treats qualified name differently.
+	/// Qualified name is split to default prefix and local name.
+	/// That default prefix is only used as fallback, when prefix associated with given namespace can't be found via el->lookupPrefix
+	/// and namespace is not default one. In other cases found prefix from upper nodes is used
+	template <class Type>
+	Type * create_node_ns(xercesc::DOMElement * element, xml_string namespace_uri, xml_string qualified_name,
+	                      Type *(xercesc::DOMDocument::*creator)(const XMLCh *, const XMLCh *))
+	{
+		if (not element) throw std::invalid_argument("xercesc_utils::create_node_ns: element is null");
+		
+		auto * doc = element->getOwnerDocument();
+		auto * found_prefix = element->lookupPrefix(namespace_uri.c_str());
+		auto pos = qualified_name.find(XERCESC_LIT(':'));
+		
+		if (found_prefix)
+		{
+			auto default_prefix_first = qualified_name.begin();
+			auto default_prefix_last = std::max(default_prefix_first, default_prefix_first + pos);
+			qualified_name.replace(default_prefix_first, default_prefix_last, found_prefix);
+			
+			return (doc->*creator)(namespace_uri.c_str(), qualified_name.c_str());
+		}
+		
+		if (element->isDefaultNamespace(namespace_uri.c_str()))
+		{
+			auto * local_name_first = qualified_name.data() + pos + 1;
+			//auto local_name_last  = qualified_name.data() + qualified_name.size();
+			
+			return (doc->*creator)(namespace_uri.c_str(), local_name_first);
+		}
+		
+		return (doc->*creator)(namespace_uri.c_str(), qualified_name.c_str());
+	}
+	
+	xercesc::DOMElement * create_element_ns(xercesc::DOMElement * element, xml_string namespace_uri, xml_string qualified_name)
+	{
+		return create_node_ns(element, std::move(namespace_uri), std::move(qualified_name), &xercesc::DOMDocument::createElementNS);
+	}
+	
+	xercesc::DOMAttr * create_attribute_ns(xercesc::DOMElement * element, xml_string namespace_uri, xml_string qualified_name)
+	{
+		return create_node_ns(element, std::move(namespace_uri), std::move(qualified_name), &xercesc::DOMDocument::createAttributeNS);
+	}
+	
+	void set_attribute_ns(xercesc::DOMElement * element, xml_string namespace_uri, xml_string qualified_name, std::string_view value)
+	{
+		if (not element) throw std::invalid_argument("xercesc_utils::set_attribute_ns: element is null");
+		
+		auto pos = qualified_name.find(XERCESC_LIT(':'));
+		auto * local_name_first = qualified_name.data() + pos + 1;
+		auto * attr = element->getAttributeNodeNS(namespace_uri.c_str(), local_name_first);
+		if (not attr)
+		{
+			attr = create_attribute_ns(element, std::move(namespace_uri), std::move(qualified_name));
+			element->setAttributeNodeNS(attr);
+		}
+		
+		attr->setValue(to_xmlch(value).c_str());
+	}
+	
 
 	namespace detail
 	{
@@ -645,7 +705,7 @@ namespace xercesc_utils
 			xml_string nsprefix;
 			xml_string_view searched_ns;
 
-			auto nspos = name.find(':');
+			auto nspos = name.find(XERCESC_LIT(':'));
 			if (nspos != name.npos)
 			{   // exists namespace
 				nsprefix.assign(first, first + nspos);
@@ -678,7 +738,7 @@ namespace xercesc_utils
 			xml_string nsprefix;
 			xml_string_view searched_ns;
 
-			auto nspos = name.find(':');
+			auto nspos = name.find(XERCESC_LIT(':'));
 			if (nspos != name.npos)
 			{   // exists namespace
 				nsprefix.assign(first, first + nspos);
@@ -726,7 +786,6 @@ namespace xercesc_utils
 				try
 				{
 					root = doc->createElementNS(searched_ns.data(), name.data());
-					//root->setPrefix(nsprefix.c_str());
 					doc->appendChild(root);
 					return root;
 				}
@@ -752,7 +811,7 @@ namespace xercesc_utils
 		xml_string nsprefix;
 		xml_string_view searched_ns;
 
-		auto nspos = name.find(':');
+		auto nspos = name.find(XERCESC_LIT(':'));
 		if (nspos != name.npos)
 		{   // exists namespace
 			nsprefix.assign(first, first + nspos);
@@ -886,7 +945,8 @@ namespace xercesc_utils
 
 				try
 				{
-					fnode = doc->createElementNS(searched_ns.data(), first);
+					//fnode = doc->createElementNS(searched_ns.data(), first);
+					fnode = create_element_ns(node, searched_ns.data(), first);
 					node->appendChild(fnode);
 				}
 				catch (xercesc::DOMException & ex)
@@ -934,7 +994,7 @@ namespace xercesc_utils
 				xml_string nsprefix;
 				xml_string_view searched_ns;
 
-				auto it = std::find(first, last, ':');
+				auto it = std::find(first, last, XERCESC_LIT(':'));
 				if (it != last)
 				{   // exists namespace
 					nsprefix.assign(first, it);
@@ -944,7 +1004,8 @@ namespace xercesc_utils
 
 				try
 				{
-					fnode = doc->createElementNS(searched_ns.data(), first);
+					//fnode = doc->createElementNS(searched_ns.data(), first);
+					fnode = create_element_ns(node, searched_ns.data(), first);
 					node->appendChild(fnode);
 				}
 				catch (xercesc::DOMException & ex)
@@ -1036,7 +1097,7 @@ namespace xercesc_utils
 		xml_string nsprefix;
 		xml_string_view searched_ns;
 
-		auto it = std::find(first, last, ':');
+		auto it = std::find(first, last, XERCESC_LIT(':'));
 		if (it != last)
 		{   // exists namespace
 			nsprefix.assign(first, it);
@@ -1087,7 +1148,7 @@ namespace xercesc_utils
 		xml_string nsprefix;
 		xml_string_view searched_ns;
 
-		auto it = std::find(first, last, ':');
+		auto it = std::find(first, last, XERCESC_LIT(':'));
 		if (it != last)
 		{   // exists namespace
 			nsprefix.assign(first, it);
@@ -1100,7 +1161,8 @@ namespace xercesc_utils
 			if (it == last)
 				element->setAttribute(first, to_xmlch(text).c_str());
 			else
-				element->setAttributeNS(searched_ns.data(), first, to_xmlch(text).c_str());
+				//element->setAttributeNS(searched_ns.data(), first, to_xmlch(text).c_str());
+				set_attribute_ns(element, searched_ns, first, std::move(text));
 		}
 		catch (xercesc::DOMException & ex)
 		{
