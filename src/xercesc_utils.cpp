@@ -758,7 +758,7 @@ namespace xercesc_utils
 				{
 					std::string err_msg = "xercesc_utils::acquire_root: document already has root node and it's xml namespace is different";
 					err_msg += "has = "; err_msg += xercesc_utils::to_utf8(local_ns);
-					err_msg += ", asked = "; err_msg.append(searched_ns.begin(), searched_ns.end());
+					err_msg += ", asked = "; err_msg += xercesc_utils::to_utf8(searched_ns);
 
 					throw std::runtime_error(err_msg);
 				}
@@ -774,7 +774,7 @@ namespace xercesc_utils
 					{
 						std::string err_msg = "xercesc_utils::acquire_root: document already has root node and it's name is different";
 						err_msg += "has = "; err_msg += xercesc_utils::to_utf8(name_first, name_last - name_first);
-						err_msg += ", asked = "; err_msg.append(first, last);
+						err_msg += ", asked = "; err_msg += xercesc_utils::to_utf8(first, last - first);
 
 						throw std::runtime_error(err_msg);
 					}
