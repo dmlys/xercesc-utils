@@ -84,11 +84,19 @@ namespace xercesc_utils
 	inline std::string to_ansi(xml_string_view  utf16_str) { return to_ansi(utf16_str.data(), utf16_str.size()); }
 	inline xml_string  to_xmlch(std::string_view utf8_str) { return to_xmlch(utf8_str.data(), utf8_str.size());  }
 
+	inline xml_string && forward_as_xml_string(xml_string && str) { return std::move(str); }
+	inline xml_string    forward_as_xml_string(const XMLCh * str) { return str ? xml_string(str) : xml_string(); }
+	inline xml_string    forward_as_xml_string(const char  * str) { return to_xmlch(str, -1); /* to_xmlch checks for nullptr */ }
+	
 	template <class String> std::enable_if_t<std::is_convertible_v<String, xml_string_view>,  xml_string> forward_as_xml_string(const String & str) { return xml_string(str); }
 	template <class String> std::enable_if_t<std::is_convertible_v<String, std::string_view>, xml_string> forward_as_xml_string(const String & str) { return to_xmlch(std::string_view(str)); }
 
+	inline xml_string_view forward_xml_string_view(const XMLCh * str) { return str ? xml_string_view(str) : xml_string_view(); }
+	inline xml_string      forward_xml_string_view(const char  * str) { return to_xmlch(str, -1); /* to_xmlch checks for nullptr */ }
+	
 	template <class String> std::enable_if_t<std::is_convertible_v<String, xml_string_view>, xml_string_view> forward_xml_string_view(const String & str) { return xml_string_view(str); }
 	template <class String> std::enable_if_t<std::is_convertible_v<String, std::string_view>,     xml_string> forward_xml_string_view(const String & str) { return to_xmlch(std::string_view(str)); }
+
 
 	/// формирует сообщение об ошибке в формате:
 	/// $message, at line $line, column $column
