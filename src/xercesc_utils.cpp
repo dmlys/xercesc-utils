@@ -1254,7 +1254,7 @@ namespace xercesc_utils
 		try
 		{
 			auto * result = doc->evaluate(
-				path.c_str(), doc->getDocumentElement(), resolver,
+				path.c_str(), element, resolver,
 				xercesc::DOMXPathResult::ANY_UNORDERED_NODE_TYPE, nullptr);
 
 			if (not result) return nullptr;
