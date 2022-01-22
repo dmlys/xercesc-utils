@@ -479,7 +479,7 @@ namespace xercesc_utils
 			{
 				auto * resolver = static_cast<xercesc::DOMXPathNSResolver *>(data);
 				if (auto * implr = dynamic_cast<DOMXPathNSResolverImpl *>(resolver))
-					associate_custom_resolver(dst, DOMXPathNSResolverPtr(implr->clone()));
+					associate_resolver(dst, implr->clone());
 				return;
 			}
 
@@ -497,26 +497,26 @@ namespace xercesc_utils
 		}
 	}
 
-	const xml_string CUSTOM_RESOLVER = XERCESC_LIT("xercesc_utils::custom_resolver");
+	const XMLCh * CUSTOM_RESOLVER = XERCESC_LIT("xercesc_utils::custom_resolver");
 	CustomResolverDataHandler g_custom_resolver_hanlder;
 
-	void associate_custom_resolver(xercesc::DOMNode * node, DOMXPathNSResolverPtr resolver)
+	void associate_resolver(xercesc::DOMNode * node, xercesc::DOMXPathNSResolver * resolver)
 	{
 		if (not node) throw std::invalid_argument("xercesc_utils::associate_custom_resolver: node is null");
-		auto * prev = node->setUserData(CUSTOM_RESOLVER.c_str(), resolver.release(), &g_custom_resolver_hanlder);
+		auto * prev = node->setUserData(CUSTOM_RESOLVER, resolver, &g_custom_resolver_hanlder);
 		if (prev) static_cast<xercesc::DOMXPathNSResolver *>(prev)->release();
 	}
 
-	auto get_associated_custom_resolver(xercesc::DOMNode * node) -> xercesc::DOMXPathNSResolver *
+	auto get_associated_resolver(xercesc::DOMNode * node) -> xercesc::DOMXPathNSResolver *
 	{
-		return static_cast<xercesc::DOMXPathNSResolver *>(node->getUserData(CUSTOM_RESOLVER.c_str()));
+		return static_cast<xercesc::DOMXPathNSResolver *>(node->getUserData(CUSTOM_RESOLVER));
 	}
 
 	auto associate_namespaces(xercesc::DOMNode * node, std::initializer_list<std::pair<std::string_view, std::string_view>> items) -> DOMXPathNSResolverImpl *
 	{
 		auto resolver = create_resolver(items);
 		auto ret = resolver.get();
-		associate_custom_resolver(node, std::move(resolver));
+		associate_resolver(node, std::move(resolver));
 		return ret;
 	}
 
@@ -524,7 +524,7 @@ namespace xercesc_utils
 	{
 		auto resolver = create_resolver(items);
 		auto ret = resolver.get();
-		associate_custom_resolver(node, std::move(resolver));
+		associate_resolver(node, std::move(resolver));
 		return ret;
 	}
 
@@ -698,7 +698,7 @@ namespace xercesc_utils
 			xercesc::DOMElement * root = doc->getDocumentElement();
 			if (not root) return nullptr;
 
-			auto * resolver = get_associated_custom_resolver(doc);
+			auto * resolver = get_associated_resolver(doc);
 
 			auto * first = name.data();
 			auto * last  = first + name.size();
@@ -730,7 +730,7 @@ namespace xercesc_utils
 		static xercesc::DOMElement * acquire_root(xercesc::DOMDocument * doc, xml_string_view name)
 		{
 			assert(doc);
-			auto * resolver = get_associated_custom_resolver(doc);
+			auto * resolver = get_associated_resolver(doc);
 			xercesc::DOMElement * root = doc->getDocumentElement();
 
 			auto * first = name.data();
@@ -804,7 +804,7 @@ namespace xercesc_utils
 		using namespace detail;
 
 		auto * doc = element->getOwnerDocument();
-		auto * resolver = get_associated_custom_resolver(doc);
+		auto * resolver = get_associated_resolver(doc);
 
 		auto * first = name.data();
 		auto * last  = first + name.size();
@@ -931,7 +931,7 @@ namespace xercesc_utils
 			auto * fnode = find_path(node, xml_string_view(first, next - first));
 			if (not fnode)
 			{
-				auto * resolver = get_associated_custom_resolver(doc);
+				auto * resolver = get_associated_resolver(doc);
 				xml_string nsprefix;
 				xml_string_view searched_ns;
 
@@ -990,7 +990,7 @@ namespace xercesc_utils
 			auto * fnode = find_path(node, xml_string_view(first, next - first));
 			if (not fnode)
 			{
-				auto * resolver = get_associated_custom_resolver(doc);
+				auto * resolver = get_associated_resolver(doc);
 				xml_string nsprefix;
 				xml_string_view searched_ns;
 
@@ -1090,7 +1090,7 @@ namespace xercesc_utils
 		using namespace detail;
 
 		auto * doc = element->getOwnerDocument();
-		auto * resolver = get_associated_custom_resolver(doc);
+		auto * resolver = get_associated_resolver(doc);
 
 		auto * first = attrname.data();
 		auto * last  = first + attrname.size();
@@ -1141,7 +1141,7 @@ namespace xercesc_utils
 		using namespace detail;
 
 		auto * doc = element->getOwnerDocument();
-		auto * resolver = get_associated_custom_resolver(doc);
+		auto * resolver = get_associated_resolver(doc);
 
 		auto * first = attrname.data();
 		auto * last  = first + attrname.size();
@@ -1236,7 +1236,7 @@ namespace xercesc_utils
 		if (not element) return nullptr;
 		auto * doc = element->getOwnerDocument();
 
-		auto * resolver = get_associated_custom_resolver(doc);
+		auto * resolver = get_associated_resolver(doc);
 		if (resolver)
 			return find_xpath(element, path, resolver);
 		else

@@ -161,8 +161,9 @@ namespace xercesc_utils
 	/************************************************************************/
 	/*                      namespace helpers                               */
 	/************************************************************************/
-	void associate_custom_resolver(xercesc::DOMNode * node, DOMXPathNSResolverPtr resolver);
-	auto get_associated_custom_resolver(xercesc::DOMNode * node) -> xercesc::DOMXPathNSResolver *;
+	void associate_resolver(xercesc::DOMNode * node, xercesc::DOMXPathNSResolver * resolver);
+	auto get_associated_resolver(xercesc::DOMNode * node) -> xercesc::DOMXPathNSResolver *;
+	inline void associate_resolver(xercesc::DOMNode * node, DOMXPathNSResolverPtr resolver) { return associate_resolver(node, resolver.release()); }
 
 	auto associate_namespaces(xercesc::DOMNode * node, std::initializer_list<std::pair<std::string_view, std::string_view>> items) -> DOMXPathNSResolverImpl *;
 	auto associate_namespaces(xercesc::DOMNode * node, std::initializer_list<std::pair<xml_string, xml_string>> items) -> DOMXPathNSResolverImpl *;
