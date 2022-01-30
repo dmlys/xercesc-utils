@@ -326,7 +326,7 @@ namespace xercesc_utils
 		}
 	}
 
-	std::shared_ptr<xercesc::DOMDocument> load(const std::string & str)
+	std::shared_ptr<xercesc::DOMDocument> load(std::string_view str)
 	{
 		return load(str.data(), str.size());
 	}

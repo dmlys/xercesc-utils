@@ -119,7 +119,7 @@ namespace xercesc_utils
 	void save(std::streambuf & sb, xercesc::DOMDocument * doc, save_option save_option = pretty_print, const XMLCh * encoding = XERCESC_LIT("utf-8"));
 	void save(std::ostream & os, xercesc::DOMDocument * doc, save_option save_option = pretty_print, const XMLCh * encoding = XERCESC_LIT("utf-8"));
 
-	std::shared_ptr<xercesc::DOMDocument> load(const std::string & content);
+	std::shared_ptr<xercesc::DOMDocument> load(std::string_view str);
 	std::shared_ptr<xercesc::DOMDocument> load(const char * data, std::size_t size);
 	std::shared_ptr<xercesc::DOMDocument> load_from_file(const xml_string  & file);
 	std::shared_ptr<xercesc::DOMDocument> load_from_file(const std::string & file);
