@@ -551,6 +551,38 @@ namespace xercesc_utils
 			set_namespace(doc, item.first, item.second);
 	}
 	
+	namespace detail
+	{
+		[[noreturn]] static void throw_prefix_not_found(const XMLCh * prefix)
+		{
+			std::string errmsg;
+			errmsg.reserve(64);
+			errmsg = "xml namespace not found, prefix = ";
+			errmsg += to_utf8(prefix);
+			throw xml_namespace_exception(errmsg);
+		}
+
+		static xml_string_view lookupNamespaceURI(const xercesc::DOMXPathNSResolver * resolver, const XMLCh * prefix)
+		{
+			auto uri = resolver->lookupNamespaceURI(prefix);
+			if (not uri) throw_prefix_not_found(prefix);
+			return uri == nullptr ? XERCESC_LIT("") : uri;
+		}
+
+		static xml_string_view lookupNamespaceURI(const xercesc::DOMNode * node, const XMLCh * prefix)
+		{
+			auto uri = node->lookupNamespaceURI(prefix);
+			if (not uri) throw_prefix_not_found(prefix);
+			return uri;
+		}
+
+		static xml_string_view getNamespaceURI(const xercesc::DOMNode * node)
+		{
+			auto uri = node->getNamespaceURI();
+			return uri == nullptr ? XERCESC_LIT("") : uri;
+		}
+	}
+	
 	/// Similar to DOMDocument::createElementNS, but treats qualified name differently.
 	/// Qualified name is split to default prefix and local name.
 	/// That default prefix is only used as fallback, when prefix associated with given namespace can't be found via el->lookupPrefix
@@ -561,28 +593,36 @@ namespace xercesc_utils
 	{
 		if (not element) throw std::invalid_argument("xercesc_utils::create_node_ns: element is null");
 		
-		auto * doc = element->getOwnerDocument();
-		auto * found_prefix = element->lookupPrefix(namespace_uri.c_str());
-		auto pos = qualified_name.find(XERCESC_LIT(':'));
-		
-		if (found_prefix)
+		try
 		{
-			auto default_prefix_first = qualified_name.begin();
-			auto default_prefix_last = std::max(default_prefix_first, default_prefix_first + pos);
-			qualified_name.replace(default_prefix_first, default_prefix_last, found_prefix);
+			auto * doc = element->getOwnerDocument();
+			auto * found_prefix = element->lookupPrefix(namespace_uri.c_str());
+			auto pos = qualified_name.find(XERCESC_LIT(':'));
+			
+			if (found_prefix)
+			{
+				auto default_prefix_first = qualified_name.begin();
+				auto default_prefix_last = std::max(default_prefix_first, default_prefix_first + pos);
+				qualified_name.replace(default_prefix_first, default_prefix_last, found_prefix);
+				
+				return (doc->*creator)(namespace_uri.c_str(), qualified_name.c_str());
+			}
+			
+			if (element->isDefaultNamespace(namespace_uri.c_str()))
+			{
+				auto * local_name_first = qualified_name.data() + pos + 1;
+				//auto local_name_last  = qualified_name.data() + qualified_name.size();
+				
+				return (doc->*creator)(namespace_uri.c_str(), local_name_first);
+			}
 			
 			return (doc->*creator)(namespace_uri.c_str(), qualified_name.c_str());
 		}
-		
-		if (element->isDefaultNamespace(namespace_uri.c_str()))
+		catch (xercesc::DOMException & ex)
 		{
-			auto * local_name_first = qualified_name.data() + pos + 1;
-			//auto local_name_last  = qualified_name.data() + qualified_name.size();
-			
-			return (doc->*creator)(namespace_uri.c_str(), local_name_first);
+			auto err = xercesc_utils::to_utf8(ex.getMessage());
+			std::throw_with_nested(std::runtime_error(std::move(err)));
 		}
-		
-		return (doc->*creator)(namespace_uri.c_str(), qualified_name.c_str());
 	}
 	
 	xercesc::DOMElement * create_element_ns(xercesc::DOMElement * element, xml_string namespace_uri, xml_string qualified_name)
@@ -599,18 +639,26 @@ namespace xercesc_utils
 	{
 		if (not element) throw std::invalid_argument("xercesc_utils::set_attribute_ns: element is null");
 		
-		auto pos = qualified_name.find(XERCESC_LIT(':'));
-		auto * local_name_first = qualified_name.data() + pos + 1;
-		auto * attr = element->getAttributeNodeNS(namespace_uri.c_str(), local_name_first);
-		if (not attr)
+		try
 		{
-			attr = create_attribute_ns(element, std::move(namespace_uri), std::move(qualified_name));
-			element->setAttributeNodeNS(attr);
+			auto pos = qualified_name.find(XERCESC_LIT(':'));
+			auto * local_name_first = qualified_name.data() + pos + 1;
+			
+			auto * attr = element->getAttributeNodeNS(namespace_uri.c_str(), local_name_first);
+			if (not attr)
+			{
+				attr = create_attribute_ns(element, std::move(namespace_uri), std::move(qualified_name));
+				element->setAttributeNodeNS(attr);
+			}
+			
+			attr->setValue(to_xmlch(value).c_str());
 		}
-		
-		attr->setValue(to_xmlch(value).c_str());
+		catch (xercesc::DOMException & ex)
+		{
+			auto err = xercesc_utils::to_utf8(ex.getMessage());
+			std::throw_with_nested(std::runtime_error(std::move(err)));
+		}
 	}
-	
 
 	namespace detail
 	{
@@ -649,36 +697,6 @@ namespace xercesc_utils
 		{
 			return ch == ' ' || ch == '\r' || ch == '\n';
 		}
-
-		[[noreturn]] static void throw_prefix_not_found(const XMLCh * prefix)
-		{
-			std::string errmsg;
-			errmsg.reserve(64);
-			errmsg = "xml namespace not found, prefix = ";
-			errmsg += to_utf8(prefix);
-			throw xml_namespace_exception(errmsg);
-		}
-
-		static xml_string_view lookupNamespaceURI(const xercesc::DOMXPathNSResolver * resolver, const XMLCh * prefix)
-		{
-			auto uri = resolver->lookupNamespaceURI(prefix);
-			if (not uri) throw_prefix_not_found(prefix);
-			return uri == nullptr ? XERCESC_LIT("") : uri;
-		}
-
-		static xml_string_view lookupNamespaceURI(const xercesc::DOMNode * node, const XMLCh * prefix)
-		{
-			auto uri = node->lookupNamespaceURI(prefix);
-			if (not uri) throw_prefix_not_found(prefix);
-			return uri;
-		}
-
-		static xml_string_view getNamespaceURI(const xercesc::DOMNode * node)
-		{
-			auto uri = node->getNamespaceURI();
-			return uri == nullptr ? XERCESC_LIT("") : uri;
-		}
-
 
 		static xml_string_view get_text_content(xercesc::DOMElement * element)
 		{
