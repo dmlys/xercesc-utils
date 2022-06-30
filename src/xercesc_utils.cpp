@@ -75,9 +75,9 @@ namespace xercesc_utils
 			std::size_t m_curpos = 0;
 			// BinInputStream interface
 		public:
-			XMLFilePos curPos() const { return m_curpos; }
-			XMLSize_t readBytes(XMLByte * const toFill, const XMLSize_t maxToRead);
-			const XMLCh * getContentType() const { return nullptr; }
+			XMLFilePos curPos() const override { return m_curpos; }
+			XMLSize_t readBytes(XMLByte * const toFill, const XMLSize_t maxToRead) override;
+			const XMLCh * getContentType() const override { return nullptr; }
 
 		public:
 			streambuf_bin_source(std::streambuf * sb) : m_sb(sb) {}
@@ -217,7 +217,7 @@ namespace xercesc_utils
 		DOMConfiguration   * serializerConfig = theSerializer->getDomConfig();
 
 		serializerConfig->setParameter(xercesc::XMLUni::fgDOMXMLDeclaration, true);
-		if (save_option)
+		if (save_option == pretty_print)
 		{
 			serializerConfig->setParameter(xercesc::XMLUni::fgDOMWRTFormatPrettyPrint, true);
 			serializerConfig->setParameter(xercesc::XMLUni::fgDOMWRTXercesPrettyPrint, false); // fixes double new-line
@@ -1253,9 +1253,9 @@ namespace xercesc_utils
 
 		try
 		{
-			auto * result = doc->evaluate(
+			DOMXPathResultPtr result(doc->evaluate(
 				path.c_str(), element, resolver,
-				xercesc::DOMXPathResult::ANY_UNORDERED_NODE_TYPE, nullptr);
+				xercesc::DOMXPathResult::ANY_UNORDERED_NODE_TYPE, nullptr));
 
 			if (not result) return nullptr;
 

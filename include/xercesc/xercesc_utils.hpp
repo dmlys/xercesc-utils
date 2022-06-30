@@ -74,6 +74,7 @@ namespace xercesc_utils
 	using DOMDocumentPtr     = std::unique_ptr<xercesc::DOMDocument, xercesc_release_deleter>;
 	using DOMLSSerializerPtr = std::unique_ptr<xercesc::DOMLSSerializer, xercesc_release_deleter>;
 	using DOMLSOutputPtr     = std::unique_ptr<xercesc::DOMLSOutput, xercesc_release_deleter>;
+	using DOMXPathResultPtr  = std::unique_ptr<xercesc::DOMXPathResult, xercesc_release_deleter>;
 
 
 	std::string to_ansi(const XMLCh * str, std::size_t len = -1);
