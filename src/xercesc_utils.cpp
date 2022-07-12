@@ -499,17 +499,25 @@ namespace xercesc_utils
 
 	const XMLCh * CUSTOM_RESOLVER = XERCESC_LIT("xercesc_utils::custom_resolver");
 	CustomResolverDataHandler g_custom_resolver_hanlder;
-
+	
+	
+	auto get_associated_resolver(xercesc::DOMNode * node) -> xercesc::DOMXPathNSResolver *
+	{
+		return static_cast<xercesc::DOMXPathNSResolver *>(node->getUserData(CUSTOM_RESOLVER));
+	}
+	
 	void associate_resolver(xercesc::DOMNode * node, xercesc::DOMXPathNSResolver * resolver)
 	{
 		if (not node) throw std::invalid_argument("xercesc_utils::associate_custom_resolver: node is null");
 		auto * prev = node->setUserData(CUSTOM_RESOLVER, resolver, &g_custom_resolver_hanlder);
 		if (prev) static_cast<xercesc::DOMXPathNSResolver *>(prev)->release();
 	}
-
-	auto get_associated_resolver(xercesc::DOMNode * node) -> xercesc::DOMXPathNSResolver *
+	
+	auto exchange_resolver(xercesc::DOMNode * node, xercesc::DOMXPathNSResolver * resolver) -> DOMXPathNSResolverPtr
 	{
-		return static_cast<xercesc::DOMXPathNSResolver *>(node->getUserData(CUSTOM_RESOLVER));
+		if (not node) throw std::invalid_argument("xercesc_utils::associate_custom_resolver: node is null");
+		auto * prev = node->setUserData(CUSTOM_RESOLVER, resolver, &g_custom_resolver_hanlder);
+		return DOMXPathNSResolverPtr(static_cast<xercesc::DOMXPathNSResolver *>(prev));
 	}
 
 	auto associate_namespaces(xercesc::DOMNode * node, std::initializer_list<std::pair<std::string_view, std::string_view>> items) -> DOMXPathNSResolverImpl *

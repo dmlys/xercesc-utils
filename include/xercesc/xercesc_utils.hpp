@@ -162,9 +162,37 @@ namespace xercesc_utils
 	/************************************************************************/
 	/*                      namespace helpers                               */
 	/************************************************************************/
-	void associate_resolver(xercesc::DOMNode * node, xercesc::DOMXPathNSResolver * resolver);
 	auto get_associated_resolver(xercesc::DOMNode * node) -> xercesc::DOMXPathNSResolver *;
+	void associate_resolver(xercesc::DOMNode * node, xercesc::DOMXPathNSResolver * resolver);
+	// similar to associate_resolver, but returns previous, instead of releasing it
+	auto exchange_resolver(xercesc::DOMNode * node, xercesc::DOMXPathNSResolver * resolver) -> DOMXPathNSResolverPtr;
+	
 	inline void associate_resolver(xercesc::DOMNode * node, DOMXPathNSResolverPtr resolver) { return associate_resolver(node, resolver.release()); }
+	inline auto exchange_resolver (xercesc::DOMNode * node, DOMXPathNSResolverPtr resolver) { return exchange_resolver(node, resolver.release()); }
+	
+	class resolver_autorestorer
+	{
+		xercesc::DOMNode * node;
+		xercesc::DOMXPathNSResolver * resolver;
+		
+	public:
+		resolver_autorestorer(xercesc::DOMNode * node, xercesc::DOMXPathNSResolver * resolver) noexcept : node(node), resolver(resolver) {}
+		~resolver_autorestorer() noexcept { if (node and resolver) xercesc_utils::associate_resolver(node, resolver); }
+		
+		resolver_autorestorer(resolver_autorestorer && other) noexcept : node(other.node), resolver(other.resolver) {}
+		resolver_autorestorer & operator =(resolver_autorestorer && other) noexcept { node = std::exchange(other.node, nullptr); resolver = std::exchange(other.resolver, nullptr); return *this; }
+	};
+	
+	template <class Functor>
+	decltype(auto) with_resolver(xercesc::DOMNode * node, DOMXPathNSResolverPtr resolver, Functor && functor)
+	{
+		// NOTE: intermediate resolver will be deleted/released after this with_resolver invocation execution
+		auto prev = exchange_resolver(node, resolver.release());
+		resolver_autorestorer ar(node, prev.release());
+		
+		return std::forward<Functor>(functor)();
+	}
+	
 
 	auto associate_namespaces(xercesc::DOMNode * node, std::initializer_list<std::pair<std::string_view, std::string_view>> items) -> DOMXPathNSResolverImpl *;
 	auto associate_namespaces(xercesc::DOMNode * node, std::initializer_list<std::pair<xml_string, xml_string>> items) -> DOMXPathNSResolverImpl *;
