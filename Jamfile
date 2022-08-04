@@ -1,5 +1,5 @@
-# This is Library Jamfile for xercesc_utils.
-# use it like xercesc_utils//xercesc_utils
+# This is Library Jamfile for xercesc-utils.
+# use it like xercesc-utils//xercesc-utils
 #
 # Jamroot or site-config/user-config should define /boost projects
 # You can use use-project or boost.use-project, from boost module ;
@@ -11,7 +11,7 @@ import testing ;
 local usage-requirements = <include>include ;
 local requirements = $(usage-requirements) ;
 
-project xercesc_utils
+project xercesc-utils
 	# attributes
 	: usage-requirements $(usage-requirements)
 	: requirements       $(requirements)
@@ -27,7 +27,7 @@ alias headers
 	: # usage-requirements
 	;
 
-lib xercesc_utils # target name
+lib xercesc-utils # target name
 	: headers
 	  $(src)  # sources
 	  $(SOLUTION_ROOT)//extlib-headers
@@ -43,12 +43,12 @@ lib xercesc_utils # target name
 	
 # local boost_libs = system filesystem unit_test_framework ;
 	
-# unit-test xercesc_utils-tests
+# unit-test xercesc-utils-tests
 # 	: $(tests_src) # sources
-# 	  xercesc_utils
+# 	  xercesc-utils
 # 	  $(SOLUTION_ROOT)//extlib
 # 	  /boost//headers
 # 	  /boost//$(boost_libs)
 # 	;
 	
-# explicit xercesc_utils-tests ;
+# explicit xercesc-utils-tests ;
