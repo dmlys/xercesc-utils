@@ -99,7 +99,7 @@ namespace xercesc_utils
 			std::streambuf * m_sb;
 
 		public:
-			xercesc_3_2::BinInputStream * makeStream() const { return new streambuf_bin_source(m_sb); }
+			xercesc::BinInputStream * makeStream() const { return new streambuf_bin_source(m_sb); }
 
 		public:
 			streambuf_input_source(std::streambuf * sb) : m_sb(sb) {}
@@ -109,14 +109,14 @@ namespace xercesc_utils
 		{
 			std::streambuf * m_sb;
 		public:
-			void writeChars(const XMLByte * const toWrite, const XMLSize_t count, xercesc_3_2::XMLFormatter * const formatter);
+			void writeChars(const XMLByte * const toWrite, const XMLSize_t count, xercesc::XMLFormatter * const formatter);
 			void flush();
 
 		public:
 			streambuf_target(std::streambuf * buf) : m_sb(buf) {}
 		};
 
-		void streambuf_target::writeChars(const XMLByte * toWrite, const XMLSize_t count, xercesc_3_2::XMLFormatter * formatter)
+		void streambuf_target::writeChars(const XMLByte * toWrite, const XMLSize_t count, xercesc::XMLFormatter * formatter)
 		{
 			XMLSize_t written = m_sb->sputn(reinterpret_cast<const char *>(toWrite), count);
 			if (written < count)
@@ -466,10 +466,10 @@ namespace xercesc_utils
 	class CustomResolverDataHandler : public xercesc::DOMUserDataHandler
 	{
 	public:
-		virtual void handle(DOMOperationType operation, const XMLCh * const key, void * data, const xercesc_3_2::DOMNode * src, xercesc_3_2::DOMNode * dst) override;
+		virtual void handle(DOMOperationType operation, const XMLCh * const key, void * data, const xercesc::DOMNode * src, xercesc::DOMNode * dst) override;
 	};
 
-	void CustomResolverDataHandler::handle(DOMOperationType operation, const XMLCh * const key, void * data, const xercesc_3_2::DOMNode * src, xercesc_3_2::DOMNode * dst)
+	void CustomResolverDataHandler::handle(DOMOperationType operation, const XMLCh * const key, void * data, const xercesc::DOMNode * src, xercesc::DOMNode * dst)
 	{
 		if (not data) return;
 
