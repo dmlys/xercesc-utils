@@ -16,6 +16,7 @@ namespace xercesc_utils
 	#define XERCESC_LIT_IMPL_char8_t(str) u8##str
 	#define XERCESC_LIT_IMPL_char16_t(str) u##str
 	#define XERCESC_LIT_IMPL_char32_t(str) U##str
+	#define XERCESC_LIT_IMPL_uint16_t(str) reinterpret_cast<const uint16_t *>(u##str)
 	
 	#define XERCESC_LIT_IMPL2(str, char_type) XERCESC_LIT_IMPL_##char_type(str)
 	#define XERCESC_LIT_IMPL(str, char_type) XERCESC_LIT_IMPL2(str, char_type)
