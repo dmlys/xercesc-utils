@@ -861,6 +861,44 @@ namespace xercesc_utils
 
 		return nullptr;
 	}
+	
+	xercesc::DOMElement * next_sibling(xercesc::DOMElement * element, xml_string_view name)
+	{
+		if (not element) return nullptr;
+		using namespace detail;
+		
+		auto * doc = element->getOwnerDocument();
+		auto * resolver = get_associated_resolver(doc);
+		
+		auto * first = name.data();
+		auto * last  = first + name.size();
+		xml_string nsprefix;
+		xml_string_view searched_ns;
+		
+		auto nspos = name.find(XERCESC_LIT(':'));
+		if (nspos != name.npos)
+		{   // exists namespace
+			nsprefix.assign(first, first + nspos);
+			first += nspos + 1;
+			searched_ns = resolver ? lookupNamespaceURI(resolver, nsprefix.c_str())
+			                       : lookupNamespaceURI(element,  nsprefix.c_str());
+		}
+		
+		for (element = element->getNextElementSibling(); element; element = element->getNextElementSibling())
+		{
+			xml_string_view local_ns = getNamespaceURI(element);
+			if (local_ns != searched_ns) continue;
+			
+			auto name_first = element->getLocalName();
+			if (not name_first) name_first = element->getNodeName();
+			auto * name_last = name_first + std::char_traits<XMLCh>::length(name_first);
+
+			if (compare(name_first, name_last, first, last) == 0)
+				return element;
+		}
+		
+		return nullptr;
+	}
 
 	xercesc::DOMElement * get_child(xercesc::DOMElement * element, xml_string_view name)
 	{

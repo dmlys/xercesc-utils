@@ -226,6 +226,8 @@ namespace xercesc_utils
 	       void set_text_content(xercesc::DOMElement * element, std::string_view text);
 
 	xercesc::DOMElement * find_child(xercesc::DOMElement * element, xml_string_view name);
+	xercesc::DOMElement * next_sibling(xercesc::DOMElement * element, xml_string_view name);
+	
 	xercesc::DOMElement * find_path(xercesc::DOMElement * element,  xml_string_view path);
 	xercesc::DOMElement * find_path(xercesc::DOMDocument * doc,     xml_string_view path);
 
@@ -246,7 +248,9 @@ namespace xercesc_utils
 	void set_path_text(xercesc::DOMElement * elem, xml_string path, std::string_view value);
 
 
-	template <class String>	inline xercesc::DOMElement * find_child(xercesc::DOMElement * element, const String & path)	{ return find_child(element, forward_xml_string_view(path)); }
+	template <class String>	inline xercesc::DOMElement * find_child(xercesc::DOMElement * element, const String & name)    { return find_child(element, forward_xml_string_view(name)); }
+	template <class String>	inline xercesc::DOMElement * next_sibling(xercesc::DOMElement * element, const String & name)  { return next_sibling(element, forward_xml_string_view(name)); }
+	
 	template <class String>	inline xercesc::DOMElement * find_path (xercesc::DOMElement * element, const String & path) { return find_path (element, forward_xml_string_view(path)); }
 	template <class String>	inline xercesc::DOMElement * find_path (xercesc::DOMDocument * doc,    const String & path) { return find_path (doc,     forward_xml_string_view(path)); }
 
