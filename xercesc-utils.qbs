@@ -17,7 +17,7 @@ StaticLibrary
 		Depends { name: "cpp" }
 
 		cpp.cxxLanguageVersion : "c++17"
-		cpp.includePaths : ["include"]
+		cpp.includePaths : [exportingProduct.sourceDirectory + "/include"]
 	}
 
 	files: [
